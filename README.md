@@ -10,7 +10,9 @@ The U.S. National Library of Medicine have a page about MEDLINE® here http://ww
 
 ## Dependencies
 [MEDLINEXMLToJSON](https://github.com/ldbib/MEDLINEXMLToJSON) developed by [Emil Hemdal](https://github.com/emilhem) for [ldbib](https://github.com/ldbib).
+
 [node-ftp](https://github.com/mscdex/node-ftp) by [Brian White](https://github.com/mscdex).
+
 [mongodb](http://mongodb.github.io/node-mongodb-native/) ([GitHub](https://github.com/mongodb/node-mongodb-native)) by [MongoDB](https://github.com/mongodb).
 
 ## Installation
