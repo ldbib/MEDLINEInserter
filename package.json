@@ -1,0 +1,17 @@
+{
+  "name": "medlineinserter",
+  "version": "0.0.1",
+  "description": "Inserts MEDLINE data into a Mongo database",
+  "main": "app.js",
+  "dependencies": {
+    "ftp": "0.3.x",
+    "medlinexmltojson": "1.0.x",
+    "mongodb": "1.4.x"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Emil Hemdal",
+  "license": "AGPLv3"
+}

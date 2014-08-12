@@ -1,0 +1,6 @@
+# Licensed Medline Files are not included in git.
+medline*.xml
+# The config file is not included since it contains private information
+config.js
+# Ignore the node_modules folder. Users wanting to use this module have to install the dependencies manually.
+node_modules/
