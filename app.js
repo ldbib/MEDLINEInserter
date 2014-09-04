@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 	var medline2json 	= require("medlinexmltojson"),
 		ftp 			= require("ftp"),
 		fs 				= require("fs"),
+		zlib 			= require('zlib'),
 		es 				= require('event-stream'),
 		mongo 			= require("mongodb"),
 		MongoDB 		= mongo.Db,
@@ -36,7 +37,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 	var type = null,
 		database = null,
 		collection = null,
-		actionHandlers = {};
+		actionHandlers = {},
+		baselineQuestion = 0;
+
+	var rNonInt = /[^0-9]/,
+		rgzipTest = /xml\.gz$/i,
+		rMedlineNrExtract = /medline[0-9]+n([0-9]+)\.xml\.gz$/i;
 
 	process.argv.forEach(function(val, index, array) {
 		if(index === 2) {
@@ -54,10 +60,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 	if(!type || !database || !collection) {
 		console.error("arguments missing");
-		console.log("arguments should be: node app.js type database collection");
-		if(!type) {
-			console.log("type has to be baseline or update");
-		}
+		console.log("arguments should be: node app.js baseline/update database collection");
 		process.exit(1);
 	}
 
@@ -66,147 +69,299 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 			if(err) { // file does not exist
 				update(null);
 			} else {
-				update(data);
+				update(parseInt(data, 10));
 			}
 		});
 	} else {
-		console.log("This command will delete the collection "+collection+" and import\nnew metadata from the MEDLINE baseline files into "+collection);
-		console.log("Are you sure that you want to do this? y/N");
+		//console.log("This command will delete the collection '"+collection+"' and import\nnew metadata from the MEDLINE baseline files into '"+collection+"'");
+		//console.log("Are you sure that you want to do this? y/N");
+
+		//console.log("Do you want to erase the database or continue? Yes/[number of the last successful importfile]/Cancel");
+
+		console.log("New or continue? N/c (new will erase the selected collection)");
+
 		var stdin = process.stdin,
 			esSplit = es.split();
-		console.log("NOT PIPED YET!");
-		console.log(stdin);
+		//console.log("NOT PIPED YET!");
+		//console.log(stdin);
 		stdin.pipe(esSplit)
 			.on('data', parseCommand);
-		console.log("PIPED!");
-		console.log(stdin);
+		//console.log("PIPED!");
+		//console.log(stdin);
 	}
 
-	/*MongoClient.connect('mongodb://127.0.0.1:27017/'+database, function(err, db) {
-		if(err) throw err;
-
-		medline2json.parse("./extensive-test.xml", function(err, json) {
-			if(err) throw err;
-			var data = JSON.parse(json);
-
-			db.collection(collection).insert(data, {safe: true, w:1}, function(err, records) {
-				if(err) { console.error(err); }
-				db.close();
-			});
-
-			//db.collection(collection).update(objects, {w:1, upsert: true, safe: true}, function(err, objects) {
-			//	if(err) console.err(err.message);
-			//});
-		});
-	});*/
-
-	function importBaseline() {
+	function importBaseline(baselineNumber) {
 		console.log("Importing baseline!");
+		MongoClient.connect('mongodb://127.0.0.1:27017/'+database, function(err, db) {
+			if(err) throw err;
+
+			var coll = db.collection(collection);
+
+			console.log("MongoDB connected!");
+
+			if(baselineNumber < 0) {
+				console.log("Removing old collection... (can take some time)");
+
+				coll.remove({}, {w:1, j:1}, function(err, numberOfRemovedDocs) {
+					if(err) throw err;
+					console.log("'"+collection+"' collection removed! Adding indexes!");
+					db.createIndex(collection, "article", function(err, name) {
+						db.createIndex(collection, "journal.title", function(err, name) {
+							db.createIndex(collection, "journal.issn", function(err, name) {
+								db.createIndex(collection, "journal.eissn", function(err, name) {
+									db.createIndex(collection, "journal.lissn", function(err, name) {
+										db.createIndex(collection, "journal.pubDate.year", function(err, name) {
+											db.createIndex(collection, "journal.volume", function(err, name) {
+												db.createIndex(collection, "journal.issue", function(err, name) {
+													db.createIndex(collection, "pagnation.fp", function(err, name) {
+														db.createIndex(collection, "pagnation.lp", function(err, name) {
+															db.createIndex(collection, "meshHeadings.descriptorName.text", function(err, name) {
+																db.createIndex(collection, "meshHeadings.qualifierName.text", function(err, name) {
+																	console.log("Indexes added! Connecting to FTP!");
+																	startFTP();
+																});
+															});
+														});
+													});
+												});
+											});
+										});
+									});
+								});
+							});
+						});
+					});
+				});
+			} else {
+				startFTP();
+			}
+
+			function startFTP() {
+				var c = new ftp();
+				c.on('ready', function() {
+					console.log("FTP connected!");
+					c.cwd("/nlmdata/.medleasebaseline/gz/", function(err, currentDir) {
+						if(err) throw err;
+						console.log("Directory changed to .medleasebaseline directory. Loading directory listing.");
+						c.list(function(err, list) {
+							if(err) throw err;
+
+							console.log("Directory listing received! Items: "+list.length);
+
+							var newList = new Array();
+
+							if(baselineNumber >= 0) {
+								for(var i=0, ii=list.length; i<ii; i++) {
+									if(rMedlineNrExtract.test(list[i].name)) {
+										if(parseInt(rMedlineNrExtract.exec(list[i].name)[1], 10) >= baselineNumber) {
+											newList.push(list[i].name);
+										}
+									}
+								}
+							} else {
+								for(var i=0, ii=list.length; i<ii; i++) {
+									if(rMedlineNrExtract.test(list[i].name)) {
+										newList.push(list[i].name);
+									}
+								}
+							}
+
+							console.log("Files to process: "+newList.length);
+
+							processFTP(c, coll, newList);
+						});
+					});
+				});
+
+				c.on('greeting', function(msg) {
+					console.log("FTP server greets you with: '"+msg+"'");
+				});
+
+				c.on('error', function(err) {
+					console.log("Error occured!");
+					console.log(err);
+				});
+
+				c.connect({
+					host: 		"ftp.nlm.nih.gov",
+					password: 	config.password
+				});
+			}
+		});
 	}
 
-	var rgzipTest = /xml\.gz$/i;
-
-	function update() {
+	function update(updateInfo) {
 		console.log("Updating!");
-		var c = new ftp();
-		c.on('ready', function() {
-			console.log("FTP connected!");
-			c.cwd("/nlmdata/.medlease/gz/", function(err, currentDir) {
-				if(err) throw err;
-				console.log("Directory changed to .medlease directory. Loading directory listing.");
-				c.list(function(err, list) {
-					console.log("Directory listing received. Items: "+list.length);
+		MongoClient.connect('mongodb://127.0.0.1:27017/'+database, function(err, db) {
+			if(err) throw err;
 
-					var asdf = 0;
+			var coll = db.collection(collection);
 
-					fs.readdir("./downloaded/", function(err, files) {
-						if(err) {
-							//fixa så att den skapar mappen.
-						} else {
-							//fixa så att den tömmer mappen.
-						}
-					});
+			console.log("MongoDB connected!");
 
-					function run() {
-						if(list.length > 0 && asdf <= 30) {
-							var working = data.shift();
-							if(rgzipTest.test(working.name)) {
-								c.get(working.name, function(err, stream) {
-									if(err) throw err;
-									stream.once('close', function() {
-										run();
-									});
-									stream.pipe(fs.createWriteStream("./downloaded/"+working.name));
-								});
+			console.log("Connecting to FTP!");
+			startFTP();
+
+			function startFTP() {
+				var c = new ftp();
+				c.on('ready', function() {
+					console.log("FTP connected!");
+					c.cwd("/nlmdata/.medlease/gz/", function(err, currentDir) {
+						if(err) throw err;
+						console.log("Directory changed to .medlease directory. Loading directory listing.");
+						c.list(function(err, list) {
+							if(err) throw err;
+
+							console.log("Directory listing received! Items: "+list.length);
+
+							var newList = new Array();
+
+							if(updateInfo >= 0) {
+								for(var i=0, ii=list.length; i<ii; i++) {
+									if(rMedlineNrExtract.test(list[i].name)) {
+										if(parseInt(rMedlineNrExtract.exec(list[i].name)[1], 10) >= updateInfo) {
+											newList.push(list[i].name);
+										}
+									}
+								}
 							} else {
-								run();
+								for(var i=0, ii=list.length; i<ii; i++) {
+									if(rMedlineNrExtract.test(list[i].name)) {
+										newList.push(list[i].name);
+									}
+								}
 							}
-						} else {
-							console.log("Finished!");
-							c.end();
-						}
-						asdf++;
-					}
+
+							console.log("Files to process: "+newList.length);
+
+							processFTP(c, coll, newList);
+						});
+					});
 				});
-			});
-		});
 
-		c.on('greeting', function(msg) {
-			console.log("FTP server greets you with: '"+msg+"'");
-		});
+				c.on('greeting', function(msg) {
+					console.log("FTP server greets you with: '"+msg+"'");
+				});
 
-		c.on('error', function(err) {
-			console.log("Error occured!");
-			console.log(err);
-		});
+				c.on('error', function(err) {
+					console.log("Error occured!");
+					console.log(err);
+				});
 
-		c.connect({
-			host: 		"ftp.nlm.nih.gov",
-			password: 	config.password
+				c.connect({
+					host: 		"ftp.nlm.nih.gov",
+					password: 	config.password
+				});
+			}
 		});
 	}
 
 	function parseCommand(command) {
 		var words = command.trim();
 
-		console.log("WORDS: "+words);
-
-		if(words.toUpperCase() === "Y") {
-			importBaseline();
-		} else {
-			process.exit(0);
+		if(baselineQuestion === 0) {
+			if(words.toUpperCase() === "N") {
+				console.log("New choosen");
+				importBaseline(-1);
+				stdin.unpipe(esSplit);
+			} else {
+				console.log("Continue choosen");
+				console.log("Which baseline file number were you on? (will start on this one)");
+				baselineQuestion = 1;
+			}
+		} else if(baselineQuestion === 1) {
+			if(!rNonInt.test(words)) {
+				importBaseline(parseInt(words, 10));
+				stdin.unpipe(esSplit);
+			} else {
+				console.log("Input invalid, try again!");
+			}
 		}
-		console.log("UNPIPED!");
-
-		stdin.unpipe(esSplit);
-		console.log(stdin);
 	}
 
-	/*
-	var c = new ftp();
-	c.on('ready', function() {
-		c.cwd("/nlmdata/.medleasebaseline/gz/", function(err, currentDir) {
-			console.log("Directory changed.");
-			console.log(currentDir);
-			c.list(function(err, list) {
-				console.log("Directory listing received.");
-				console.log("Amount of items in directory: "+list.length);
+	function processFTP(c, coll, list) {
+		var inserted = 0, updated = 0;
+
+		console.log("starting download");
+
+		run();
+
+		function run() {
+			if(list.length > 0) {
+				var working = list.shift();
+				if(rgzipTest.test(working)) {
+					console.log("Downloading: "+working);
+					c.get(working, function(err, stream) {
+						if(err) throw err;
+						stream.once('close', function() {
+							console.log("XML file downloaded");
+							if(type === "update") {
+								fs.writeFile("./lastUpdate.txt", parseInt(rMedlineNrExtract.exec(working)[1], 10)+"", function(err) {
+									if(err) return console.error(err);
+								})
+							}
+							run();
+						});
+						var gzip = zlib.createGunzip(),
+							unshifted = 0;
+
+						medline2json.parse(stream.pipe(gzip), true, function(err, json) {
+							if(err) {
+								if(unshifted < 3) {
+									list.unshift(working);
+									unshifted++;
+								}
+								return console.error(err);
+							}
+							if(!json) {
+								return console.error("JSON is null!");
+							}
+							json = JSON.parse(json);
+
+							if(json.delete) {
+								var ids = [];
+								for(var i=0,ii=json.delete.length; i<ii; i++) {
+									ids.push(json.delete[i].pmid);
+								}
+								coll.remove({"_id": ids}, {safe: true, w:1}, function(err, obj) {
+									if(err) {
+										return console.error(err);
+									}
+								});
+							} else {
+								coll.findOne({"_id": json._id}, function(err, obj) {
+									if(err) {
+										return console.error(err);
+									}
+									if(obj) {
+										coll.update({"_id": json._id}, json, {safe: true, w:1}, function(err, records) {
+											if(err) {
+												return console.error(err);
+											}
+											updated++;
+										});
+									} else {
+										coll.insert(json, {safe: true, w:1}, function(err, records) {
+											if(err) {
+												return console.error(err);
+											}
+											inserted++;
+										});
+									}
+								});
+							}
+						});
+					});
+				} else {
+					run();
+				}
+			} else {
+				console.log("Finished!");
+				console.log(Date.now());
+				console.log(inserted);
+				console.log(updated);
 				c.end();
-			});
-		});
-	});
-
-	c.on('greeting', function(msg) {
-		console.log("Server greets you with: '"+msg+"'");
-	});
-
-	c.on('error', function(err) {
-		console.log("Error occured!");
-		console.log(err);
-	});
-
-	c.connect({
-		host: 		"ftp.nlm.nih.gov",
-		password: 	config.password
-	});*/
+			}
+		}
+	}
 }());

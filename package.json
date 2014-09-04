@@ -4,8 +4,10 @@
   "description": "Inserts MEDLINE data into a Mongo database",
   "main": "app.js",
   "dependencies": {
+    "event-stream": "^3.1.7",
     "ftp": "0.3.x",
-    "medlinexmltojson": "1.0.x",
+    "medlinexmltojson": "1.x.x",
+    "mkpath": "^0.1.0",
     "mongodb": "1.4.x"
   },
   "devDependencies": {},
