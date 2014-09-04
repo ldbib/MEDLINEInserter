@@ -73,21 +73,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 			}
 		});
 	} else {
-		//console.log("This command will delete the collection '"+collection+"' and import\nnew metadata from the MEDLINE baseline files into '"+collection+"'");
-		//console.log("Are you sure that you want to do this? y/N");
-
-		//console.log("Do you want to erase the database or continue? Yes/[number of the last successful importfile]/Cancel");
-
 		console.log("New or continue? N/c (new will erase the selected collection)");
 
 		var stdin = process.stdin,
 			esSplit = es.split();
-		//console.log("NOT PIPED YET!");
-		//console.log(stdin);
+
 		stdin.pipe(esSplit)
 			.on('data', parseCommand);
-		//console.log("PIPED!");
-		//console.log(stdin);
 	}
 
 	function importBaseline(baselineNumber) {
@@ -133,6 +125,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 					});
 				});
 			} else {
+				console.log("Connecting to FTP!");
 				startFTP();
 			}
 
