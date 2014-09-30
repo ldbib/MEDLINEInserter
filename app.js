@@ -20,13 +20,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+/* jshint curly: true, eqeqeq: true, immed: true, indent: 4, latedef: true, noarg: true, nonbsp: true, nonew: true, undef: true, eqnull: true, node: true */
+
 (function() {
 	"use strict";
+
 	var medline2json 	= require("medlinexmltojson"),
 		ftp 			= require("ftp"),
 		fs 				= require("fs"),
-		zlib 			= require('zlib'),
-		es 				= require('event-stream'),
+		zlib 			= require("zlib"),
+		es 				= require("event-stream"),
 		mongo 			= require("mongodb"),
 		MongoDB 		= mongo.Db,
 		Server 			= mongo.Server,
@@ -79,13 +82,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 			esSplit = es.split();
 
 		stdin.pipe(esSplit)
-			.on('data', parseCommand);
+			.on("data", parseCommand);
 	}
 
 	function importBaseline(baselineNumber) {
 		console.log("Importing baseline!");
-		MongoClient.connect('mongodb://127.0.0.1:27017/'+database, function(err, db) {
-			if(err) throw err;
+		MongoClient.connect("mongodb://127.0.0.1:27017/"+database, function(err, db) {
+			if(err) {
+				throw err;
+			}
 
 			var coll = db.collection(collection);
 
@@ -95,20 +100,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 				console.log("Removing old collection... (can take some time)");
 
 				coll.remove({}, {w:1, j:1}, function(err, numberOfRemovedDocs) {
-					if(err) throw err;
+					if(err) {
+						throw err;
+					}
 					console.log("'"+collection+"' collection removed! Adding indexes!");
-					db.createIndex(collection, "article", function(err, name) {
-						db.createIndex(collection, "journal.title", function(err, name) {
-							db.createIndex(collection, "journal.issn", function(err, name) {
-								db.createIndex(collection, "journal.eissn", function(err, name) {
-									db.createIndex(collection, "journal.lissn", function(err, name) {
-										db.createIndex(collection, "journal.pubDate.year", function(err, name) {
-											db.createIndex(collection, "journal.volume", function(err, name) {
-												db.createIndex(collection, "journal.issue", function(err, name) {
-													db.createIndex(collection, "pagnation.fp", function(err, name) {
-														db.createIndex(collection, "pagnation.lp", function(err, name) {
-															db.createIndex(collection, "meshHeadings.descriptorName.text", function(err, name) {
-																db.createIndex(collection, "meshHeadings.qualifierName.text", function(err, name) {
+					db.createIndex(collection, "article", function() {
+						db.createIndex(collection, "journal.title", function() {
+							db.createIndex(collection, "journal.issn", function() {
+								db.createIndex(collection, "journal.eissn", function() {
+									db.createIndex(collection, "journal.lissn", function() {
+										db.createIndex(collection, "journal.pubDate.year", function() {
+											db.createIndex(collection, "journal.volume", function() {
+												db.createIndex(collection, "journal.issue", function() {
+													db.createIndex(collection, "pagnation.fp", function() {
+														db.createIndex(collection, "pagnation.lp", function() {
+															db.createIndex(collection, "meshHeadings.descriptorName.text", function() {
+																db.createIndex(collection, "meshHeadings.qualifierName.text", function() {
 																	console.log("Indexes added! Connecting to FTP!");
 																	startFTP();
 																});
@@ -131,17 +138,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 			function startFTP() {
 				var c = new ftp();
-				c.on('ready', function() {
+				c.on("ready", function() {
 					console.log("FTP connected!");
 					c.cwd("/nlmdata/.medleasebaseline/gz/", function(err, currentDir) {
-						if(err) throw err;
+						if(err) {
+							throw err;
+						}
 						console.log("Directory changed to .medleasebaseline directory. Loading directory listing.");
 						c.list(function(err, list) {
-							if(err) throw err;
+							if(err) {
+								throw err;
+							}
 
 							console.log("Directory listing received! Items: "+list.length);
 
-							var newList = new Array();
+							var newList = [];
 
 							if(baselineNumber >= 0) {
 								for(var i=0, ii=list.length; i<ii; i++) {
@@ -166,11 +177,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 					});
 				});
 
-				c.on('greeting', function(msg) {
+				c.on("greeting", function(msg) {
 					console.log("FTP server greets you with: '"+msg+"'");
 				});
 
-				c.on('error', function(err) {
+				c.on("error", function(err) {
 					console.log("Error occured!");
 					console.log(err);
 				});
@@ -185,8 +196,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 	function update(updateInfo) {
 		console.log("Updating!");
-		MongoClient.connect('mongodb://127.0.0.1:27017/'+database, function(err, db) {
-			if(err) throw err;
+		MongoClient.connect("mongodb://127.0.0.1:27017/"+database, function(err, db) {
+			if(err) {
+				throw err;
+			}
 
 			var coll = db.collection(collection);
 
@@ -197,20 +210,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 			function startFTP() {
 				var c = new ftp();
-				c.on('ready', function() {
+				c.on("ready", function() {
 					console.log("FTP connected!");
 					c.cwd("/nlmdata/.medlease/gz/", function(err, currentDir) {
-						if(err) throw err;
+						if(err) {
+							throw err;
+						}
 						console.log("Directory changed to .medlease directory. Loading directory listing.");
 						c.list(function(err, list) {
-							if(err) throw err;
+							if(err) {
+								throw err;
+							}
 
 							console.log("Directory listing received! Items: "+list.length);
 
-							var newList = new Array();
+							var newList = [],
+								i, ii;
 
 							if(updateInfo >= 0) {
-								for(var i=0, ii=list.length; i<ii; i++) {
+								for(i=0, ii=list.length; i<ii; i++) {
 									if(rMedlineNrExtract.test(list[i].name)) {
 										if(parseInt(rMedlineNrExtract.exec(list[i].name)[1], 10) >= updateInfo) {
 											newList.push(list[i].name);
@@ -218,7 +236,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 									}
 								}
 							} else {
-								for(var i=0, ii=list.length; i<ii; i++) {
+								for(i=0, ii=list.length; i<ii; i++) {
 									if(rMedlineNrExtract.test(list[i].name)) {
 										newList.push(list[i].name);
 									}
@@ -232,11 +250,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 					});
 				});
 
-				c.on('greeting', function(msg) {
+				c.on("greeting", function(msg) {
 					console.log("FTP server greets you with: '"+msg+"'");
 				});
 
-				c.on('error', function(err) {
+				c.on("error", function(err) {
 					console.log("Error occured!");
 					console.log(err);
 				});
@@ -277,21 +295,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 		console.log("starting download");
 
-		run();
-
 		function run() {
 			if(list.length > 0) {
 				var working = list.shift();
 				if(rgzipTest.test(working)) {
-					console.log("Downloading: "+working);
+					console.log("Downloading: " + working);
 					c.get(working, function(err, stream) {
-						if(err) throw err;
-						stream.once('close', function() {
+						if(err) {
+							throw err;
+						}
+						stream.once("close", function() {
 							console.log("XML file downloaded");
 							if(type === "update") {
-								fs.writeFile("./lastUpdate.txt", parseInt(rMedlineNrExtract.exec(working)[1], 10)+"", function(err) {
-									if(err) return console.error(err);
-								})
+								fs.writeFile("./lastUpdate.txt", parseInt(rMedlineNrExtract.exec(working)[1], 10) + "", function(err) {
+									if(err) {
+										return console.error(err);
+									}
+								});
 							}
 							run();
 						});
@@ -311,10 +331,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 							}
 							json = JSON.parse(json);
 
+							json._id = parseInt(json._id, 10);
+
 							if(json.delete) {
-								var ids = [];
-								for(var i=0,ii=json.delete.length; i<ii; i++) {
-									ids.push(json.delete[i].pmid);
+								var ids = [], i, ii;
+								for(i=0,ii=json.delete.length; i<ii; i++) {
+									ids.push(parseInt(json.delete[i].pmid, 10));
 								}
 								coll.remove({"_id": ids}, {safe: true, w:1}, function(err, obj) {
 									if(err) {
@@ -356,5 +378,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 				c.end();
 			}
 		}
+		run();
 	}
 }());
