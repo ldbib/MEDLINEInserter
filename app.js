@@ -99,7 +99,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 			if(baselineNumber < 0) {
 				console.log("Removing old collection... (can take some time)");
 
-				coll.remove({}, {w:1, j:1}, function(err, numberOfRemovedDocs) {
+				//coll.remove({}, {w:1, j:1}, function(err, numberOfRemovedDocs) {
+
+				coll.drop(function() {
+					coll = db.collection(collection);
 					if(err) {
 						throw err;
 					}
